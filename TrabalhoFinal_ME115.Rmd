@@ -1,0 +1,411 @@
+---
+title: "Trabalho 2.0"
+author: "Duda Villéla"
+date: "2025-05-30"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+install.packages("farver")
+install.packages("fmsb")
+install.packages("ggwordcloud")
+install.packages("vroom")
+install.packages("gridExtra")
+library(vroom)
+library(readr)
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+library(ggwordcloud)
+library(gridExtra)
+library(grid)
+
+```
+
+```{r}
+dados_limpos <- read_csv("spotify-2023.csv", locale = locale(encoding = "Latin1"))
+#filtrando
+dados_limpos <- dados_limpos %>% 
+filter(!is.na(track_name), !is.na('artist(s)_name'))
+
+dados_limpos <- dados_limpos %>% 
+  filter(!is.na(streams), streams > 0)
+
+dados_limpos <- dados_limpos %>%
+  filter(!grepl("[A-Za-z]", as.character(streams))) %>%
+  mutate(streams = as.numeric(as.character(streams)))
+
+dados_teste <- dados_limpos %>%
+  filter(!is.numeric('speechiness_%'))
+
+```
+
+
+
+
+```{r}
+
+
+colnames(dados_limpos) <- c("musica", "artista", "qtd_artistas", "ano_lancamento",
+                           "mes_lancamento", "released_day", "spotify_playlist", "charts",     "streams","in_apple_playlists", "in_apple_charts","in_deezer_playlists", "in_deezer_charts", "in_shazam_charts", "bpm", "key", "mode", "dancabilidade", "positividade", "energy_.", "acousticness_.", "instrumentalness_.", "ao_vivo", "speechiness_.")
+
+dados_limpos <- dados_limpos %>%
+  select(-released_day, -in_apple_playlists, -in_apple_charts,
+         -in_deezer_playlists, -in_deezer_charts, -in_shazam_charts,
+         -bpm, -key, -mode, -energy_., -acousticness_.,
+         -instrumentalness_., -speechiness_.)
+
+#write_csv(dados_limpos, "dados_limpos.csv")
+  
+```
+
+
+```{r}
+dados_limpos <- dados_limpos %>% 
+  drop_na()
+
+```
+
+
+
+
+```{r}
+tema <- theme(plot.background = element_rect(fill = "black", color = NA),
+    panel.background = element_rect(fill = "black", color = NA),
+    axis.text = element_text(color = "white"),
+    axis.title = element_text(color = "white"),
+    plot.title = element_text(color = "white", size = 16, face = "bold"),
+    axis.ticks = element_line(color = "white"),
+    panel.grid.major = element_line(color = "#1f1f1f", size = 0.001),
+    panel.grid.minor = element_line(color = "#1f1f1f", size = 0.001),
+    plot.caption = element_text(color = "white", hjust = 0, size = 10, face = "italic")
+
+  )
+```
+
+```{r}
+#Pergunta 1 Ccom grafico de barras
+
+dados_limpos$streams <- as.numeric(dados_limpos$streams)
+
+top10 <- dados_limpos %>%
+  group_by(artista) %>%
+  summarise(total_streams = sum(streams)/1000000) %>%
+  arrange(desc(total_streams)) %>%
+  slice(1:10)
+
+ggplot(top10, aes(
+    x = reorder(artista, total_streams),
+    y = total_streams
+  )) +
+  geom_col(fill = "#1dd760") +     #51b96a    #1dd760
+  coord_flip() +
+  labs(
+    x     = "Artista",
+    y     = "Total de Streams por Milhão",
+    title = "Top 10 Artistas com Mais Streams" ,
+    caption = "Figura 1: Gráfico de barras dos 10 artistas com mais streams "
+  ) +
+  tema
+
+```
+
+```{r}
+#Pergunta 2 
+
+#grafico de pirulito horizontal
+top10 <- dados_limpos %>%
+  group_by(musica) %>%
+  summarise(total_streams = sum(streams)/1000000) %>%
+  arrange(desc(total_streams)) %>%
+  slice(1:10)
+
+
+
+ggplot(top10, aes(x= reorder(musica, total_streams), y= total_streams)) +
+  geom_segment( aes(xend=musica, y=0, yend=total_streams), color="#1dd760") +
+  geom_point( color="#51b96a", size=6, alpha=0.6) +
+  theme_light() +
+  coord_flip() +
+  labs(x = "Musicas", y = "Total de Streams por Milhão", title = "Top 10 Músicas com Mais Streams", caption = "Figura 2: Gráfico de Pirulito das 10 músicas com mais streams")+
+  tema
+
+```
+
+```{r}
+#Pergunta 3
+
+top_artistas_chart <- dados_limpos %>%
+  group_by(artista) %>%
+  summarise(aparicoes_chart = sum(charts, na.rm = TRUE)) %>%
+  arrange(desc(aparicoes_chart)) %>%
+  slice(1:10)
+
+#gráfico
+ggplot(top_artistas_chart, aes(
+    x = reorder(artista, aparicoes_chart),
+    y = aparicoes_chart
+  )) +
+  geom_col(fill = "#1dd760") +
+  labs(
+    x     = "Artista",
+    y     = "Aparições nos Charts",
+    title = "Top 10 Artistas com Mais Presença nos Charts do Spotify",
+    caption = "Figura 3: Gráfico de barras dos 10 artistas com mais presença nos charts do spotify"
+  ) +
+  tema +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+```{r}
+#Pergunta 4
+
+contagem <- dados_limpos %>% 
+  count(mes_lancamento) %>% 
+  mutate (mes = factor(mes_lancamento, levels = 1:12))
+  
+
+  ggplot(contagem, aes(x=mes, y=n)) +
+    geom_line(color = "#1dd760", size = 1, group = 1) +
+    geom_point(color = "white", size = 3)+
+    labs(title = "Frequência de Lançamentos por Mês",
+        x = "Mês de Lançamento",
+        y = "Quantidade de Lançamentos",
+        caption = "Figura 4: Gráfico de linhas da frequência de lançamentos de músicas por mês")+
+    tema 
+
+```
+
+
+
+```{r}
+#Pergunta 7
+
+meses <- dados_limpos %>%
+  group_by(mes_lancamento) %>%
+  summarise(total_streams = sum(streams, na.rm = TRUE) / 1e6) %>%
+  arrange(desc(total_streams)) %>%
+  slice(1:20)
+
+ggplot(meses, aes(x = reorder(as.character(mes_lancamento), total_streams), y = total_streams)) +
+  geom_segment(aes(x = reorder(as.character(mes_lancamento), total_streams), 
+                   xend = reorder(as.character(mes_lancamento), total_streams),
+                   y = 0, yend = total_streams),
+               color = "#1dd760") +
+  geom_point(color = "#51b96a", size = 6, alpha = 0.6) +
+  theme_light() +
+  labs(
+    x = "Mês de Lançamento",
+    y = "Total de Streams (em milhões)",
+    title = "Top Meses com Mais Streams",
+    caption = "Figura 5: Gráfico de pirulito dos 10 meses com maior número de streams"
+  ) +
+  tema +
+  coord_flip()
+
+```
+
+```{r}
+#Pergunta 5
+
+#as 35 músicas mais positivas
+positivas <- dados_limpos %>%
+  arrange(desc(positividade)) %>%
+  slice(1:35)
+
+#para não dar erro com "caracteres estranhos"
+positivas$musica <- iconv(positivas$musica, from = "", to = "UTF-8", sub = "")
+positivas$musica <- gsub("[^[:alnum:] ]", "", positivas$musica)  
+
+#grafico
+ggplot(positivas, aes(label = musica, size = positividade, color = positividade)) +
+  geom_text_wordcloud_area(family = "sans", show.legend = TRUE) +
+  scale_size_area(max_size = 18, guide = "none") +
+  scale_color_gradient(
+    low = "#00c0ff", high = "#1dd760",
+    guide = guide_colorbar(
+      title = "Positividade",
+      label = TRUE 
+    )
+  ) +
+  labs(title = "Músicas com Maior Positividade",
+       caption = "Figura 6: Nuvem de palavras das 35 músicas com maior positividade") +
+  theme_minimal() +
+  theme(
+    panel.background = element_rect(fill = "black", color = NA),
+    plot.background = element_rect(fill = "black", color = NA),
+    text = element_text(color = "white"),
+    plot.title = element_text(size = 17, face = "bold", color = "white"),
+    legend.title = element_text(color = "white"),
+    legend.text = element_text(color = "white"),  
+    legend.background = element_rect(fill = "black"),
+    legend.key = element_rect(fill = "black")
+  )
+```
+
+
+
+```{r}
+#Pergunta 8
+
+quantis <- quantile(dados_limpos$spotify_playlist, probs = c(0.33, 0.66), na.rm = TRUE)
+q33 <- quantis[1]
+q66 <- quantis[2]
+
+dados_limpos <- dados_limpos %>%
+  mutate(
+    playlist_cat = cut(
+      spotify_playlist,
+      breaks = c(-Inf, q33, q66, Inf),
+      labels = c(
+        paste0("Baixo (0–", round(q33), ")"),
+        paste0("Médio (", round(q33), "–", round(q66), ")"),
+        paste0("Alto (", round(q66), "–", max(spotify_playlist, na.rm = TRUE), ")")
+      ),
+      include.lowest = TRUE
+    )
+  )
+
+#boxplot 1
+ggplot(dados_limpos, aes(x = playlist_cat, y = charts)) +
+  geom_boxplot(fill = "#1dd760", color = "white", alpha = 0.6) +
+  labs(
+    title = "Efeito de Estar em Playlists na Classificação em Charts",
+    caption = "Figura 7: Boxplot do efeito da presença de músicas em playlists na classificação em charts",
+    x = "Categoria de Playlists (faixa de valores)",
+    y = "Número de Vezes nos Charts"
+  ) +
+  tema +
+  theme(axis.text.x = element_text(angle = 0, hjust = 0.5))+
+  theme(panel.grid.major = element_line(color = "#3c4043", size = 0.001),
+    panel.grid.minor = element_line(color = "#3c4043", size = 0.001))
+
+#boxplot 2
+ggplot(dados_limpos, aes(x = playlist_cat, y = streams / 1e6)) +
+  geom_boxplot(fill = "#00c0ff", color = "white", alpha = 0.6) +
+  labs(
+    title = "Efeito de Estar em Playlists no Total de Streams",
+    caption = "Figura 8: Boxplot do efeito da presença de músicas em playlists no total de streams",
+    x = "Categoria de Playlists (faixa de valores)",
+    y = "Streams (milhões)"
+  ) +
+  tema +
+  theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
+
+```
+
+```{r}
+#Pergunta 9
+
+r_valor <- cor(dados_limpos$ao_vivo, dados_limpos$charts, use = "complete.obs")
+
+ggplot(dados_limpos, aes(x = ao_vivo, y = charts)) +
+  geom_point(color = "#00c0ff", alpha = 0.4) + 
+  geom_smooth(method = "lm", se = FALSE, color = "#1dd760", linetype = "dashed") +
+  annotate(
+    "text",
+    x     = Inf,            # "Infinito" no eixo x -> canto direito
+    y     = Inf,            # "Infinito" no eixo y -> canto superior
+    label = paste0("Coeficiente de Correlação = ", round(r_valor, 3)),
+    color = "white",
+    size  = 5,
+    hjust = 1.1,            # desloca um pouco para a esquerda (para não ficar colado na borda)
+    vjust = 1.5             # desloca um pouco para baixo (para não ficar colado no topo)
+  ) +
+  labs(title = "Relação entre Elementos ao vivo e Presença em Charts",
+       caption = "Figura 9: Gráfico de dispersão da relação entre elementos ao vivo presentes na música e a presença em charts",
+       x = "o Quão ao vivo é (%)",
+       y = "Ranking no Charts") +
+  tema
+```
+
+
+```{r}
+#Pergunta 11
+#as 35 músicas mais positivas
+dancas <- dados_limpos %>%
+  arrange(desc(dancabilidade)) %>%
+  slice(1:35)
+
+#para não dar erro com "caracteres estranhos"
+dancas$musica <- iconv(dancas$musica, from = "", to = "UTF-8", sub = "")
+dancas$musica <- gsub("[^[:alnum:] ]", "", dancas$musica)  
+
+#grafico
+ggplot(dancas, aes(label = musica, size = dancabilidade, color = dancabilidade)) +
+  geom_text_wordcloud_area(family = "sans", show.legend = TRUE) +
+  scale_size_area(max_size = 18, guide = "none") +
+  scale_color_gradient(
+    low = "#00c0ff", high = "#1dd760",
+    guide = guide_colorbar(
+      title = "Dançabilidade",
+      caption = "Figura 10: Nuvem de palavras das 35 músicas com maior dançabilidade",
+      label = TRUE  
+    )
+  ) +
+  labs(title = "Músicas com Maior Dançabilidade") +
+  theme_minimal() +
+  theme(
+    panel.background = element_rect(fill = "black", color = NA),
+    plot.background = element_rect(fill = "black", color = NA),
+    text = element_text(color = "white"),
+    plot.title = element_text(size = 18, face = "bold", color = "white"),
+    legend.title = element_text(color = "white"),
+    legend.text = element_text(color = "white"),  
+    legend.background = element_rect(fill = "black"),
+    legend.key = element_rect(fill = "black")
+  )
+
+```
+
+```{r}
+#Estatíticas Sumárias 
+resumos <- rbind(
+qtd_artistas <- summary(dados_limpos$qtd_artistas), #quantidade de artistas
+qtd_spotify <- summary(dados_limpos$spotify_playlist), #spotify_playlist
+qtd_streams <- summary(dados_limpos$streams/1000), #streams
+qtd_aovivo <- summary(dados_limpos$ao_vivo) #presenca de elementos de performance ao vivo
+)
+
+tabela_resumos <- as.data.frame(t(resumos))
+tabela_resumos[] <- lapply(tabela_resumos, function(x) round(as.numeric(x), 1)) #arredondar os números
+
+tabela_resumos$Estatística <- rownames(tabela_resumos) #cria a coluna das estats sumarias
+tabela_resumos$Estatística <- recode(
+  tabela_resumos$Estatística, "Min." = "Mínimo", "1st Qu." = "1º Quartil", "Median" = "Mediana",
+  "Mean" = "Média", "3rd Qu." = "3º Quartil","Max." = "Máximo")
+tabela_resumos <- tabela_resumos[, c(ncol(tabela_resumos), 1:(ncol(tabela_resumos)-1))] #colocando a coluna nova antes de todas
+
+
+colnames(tabela_resumos) <- c("Estatística", "Quantidade de Artistas", "Quantidade de Playlists", "Quantidade de Streams", "Porcentagem de Elementos Ao Vivo")
+
+#cria a grob, necessária para fazer tabelas no R
+grob_tabela <- tableGrob(tabela_resumos, rows = NULL)
+
+#adiciona cores à tabela
+for (i in seq_along(grob_tabela$grobs)) {
+  cell <- grob_tabela$grobs[[i]]
+  
+  #altera borda de todas as células para verde
+  cell$gp <- gpar(col = "#1dd760", lwd = 2, fill = "black", fontsize = 10)
+  
+  grob_tabela$grobs[[i]] <- cell
+  }
+
+#salva como PNG
+ggsave(
+  filename = "tabela_resumos.png",
+  plot     = grob_tabela,
+  width    = 11,    # ajuste conforme necessidade
+  height   = 6,
+  dpi      = 300)
+
+```
+
+
+
